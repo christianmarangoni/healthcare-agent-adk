@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthcare AI - Progetto Argolis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .chat-container { height: calc(100vh - 180px); }
+        .message-bot { background-color: #f0f7ff; border-left: 4px solid #007bff; }
+        .message-user { background-color: #e9ecef; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans">
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg text-white">
+                    <i class="fas fa-hand-holding-medical text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl text-slate-800">Healthcare Support</h1>
+                    <p class="text-xs text-blue-600 font-medium uppercase tracking-wider">Università Bicocca - Progetto Argolis</p>
+                </div>
+            </div>
+            <div class="hidden md:block text-right">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    AI Agent Active
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Chat Area -->
+    <main class="max-w-4xl mx-auto p-4">
+        <div id="chat-box" class="chat-container overflow-y-auto space-y-4 mb-4 pr-2">
+            <!-- Welcome Message -->
+            <div class="message-bot p-4 rounded-lg shadow-sm max-w-[85%]">
+                <p class="text-slate-800 leading-relaxed">
+                    Buongiorno. Sono l'Assistente Sanitario Intelligente del Progetto Argolis. 
+                    Posso aiutarla a trovare medici specialisti o fornirle informazioni operative sui protocolli clinici.
+                </p>
+                <div class="mt-3 p-3 bg-red-50 border border-red-100 rounded text-xs text-red-700 font-semibold">
+                    ⚠️ NOTA: Per emergenze mediche o sintomi gravi, chiami immediatamente il 112.
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="bg-white p-4 rounded-xl shadow-lg border border-slate-200">
+            <form id="chat-form" class="flex gap-2">
+                <input type="text" id="user-input" 
+                       class="flex-1 p-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                       placeholder="Scriva qui la sua domanda (es. Cerco un cardiologo a Milano)..." required>
+                <button type="submit" id="send-btn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2">
+                    <span>Invia</span>
+                    <i class="fas fa-paper-plane text-sm"></i>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+
+        function appendMessage(text, role) {
+            const div = document.createElement('div');
+            div.className = role === 'bot' ? 'message-bot p-4 rounded-lg shadow-sm max-w-[85%]' : 'message-user p-4 rounded-lg shadow-sm ml-auto max-w-[85%]';
+            div.innerHTML = `<p class="text-slate-800 leading-relaxed">${text}</p>`;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user');
+            userInput.value = '';
+            
+            // Loading state
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message-bot p-4 rounded-lg shadow-sm max-w-[85%] opacity-50';
+            loadingDiv.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> L\'assistente sta elaborando...';
+            chatBox.appendChild(loadingDiv);
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                const data = await response.json();
+                chatBox.removeChild(loadingDiv);
+                appendMessage(data.answer, 'bot');
+            } catch (err) {
+                chatBox.removeChild(loadingDiv);
+                appendMessage("Spiacente, si è verificato un errore di connessione.", 'bot');
+            }
+        });
+    </script>
+</body>
+</html>
