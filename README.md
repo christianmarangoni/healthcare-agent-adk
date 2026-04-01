@@ -12,6 +12,10 @@ Agente intelligente basato su **Vertex AI Agent Engine (ADK Framework)** progett
 - Vertex AI Agent Builder attivo
 - Python 3.9+
 
+## 🌐 Web Interface (Live Demo)
+L'interfaccia chat è pubblicata ed è accessibile al seguente indirizzo:
+👉 **[Healthcare AI Web Portal](https://healthcare-web-ui-482813436426.europe-west1.run.app)**
+
 ## 🚀 Deployment (via Bastion / Local CLI)
 1. Installa le dipendenze:
    ```bash
