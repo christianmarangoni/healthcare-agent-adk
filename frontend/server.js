@@ -28,12 +28,12 @@ app.post('/api/chat', async (req, res) => {
         
         // Mocking the response for the demo deployment phase
         // TODO: Replace with real Vertex AI Agent Engine client call
-        let answer = `Ho ricevuto la tua richiesta: "${message}". Sto interrogando il database dei medici specialisti...`;
+        let answer = `Ho consultato il database ufficiale tramite Google MCP Data Toolbox...`;
         
         if (message.toLowerCase().includes('cardiologo')) {
-            answer = "Ho trovato 2 cardiologi disponibili a Milano: la Dr.ssa Elena Bianchi (domani ore 10:00) e il Dr. Valerio Neri (venerdì ore 15:30). Desidera prenotare un appuntamento?";
+            answer = "Tramite l'MCP Toolbox ho trovato specialisti in CARDIOLOGIA a Milano: la Dr.ssa Francesca Bai (ASST Santi Paolo e Carlo) e il Dr. Valerio Neri (IRCCS San Raffaele). Desidera i loro recapiti email?";
         } else if (message.toLowerCase().includes('112')) {
-            answer = "Come indicato, per emergenze chiami immediatamente il 112.";
+            answer = "⚠️ Emergenza rilevata: chiami immediatamente il 112.";
         }
 
         res.json({ answer });

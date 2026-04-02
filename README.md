@@ -12,6 +12,14 @@ Agente intelligente basato su **Vertex AI Agent Engine (ADK Framework)** progett
 - Vertex AI Agent Builder attivo
 - Python 3.9+
 
+## 🏗️ Architettura
+L'agente utilizza un'architettura **Hybrid RAG**:
+1.  **Unstructured Data:** Documentazione clinica tramite Vertex AI Search (GCS/Drive).
+2.  **Structured Data:** Elenco medici specialisti su **Google Cloud SQL (PostgreSQL)** interrogato in tempo reale tramite **Model Context Protocol (MCP)**.
+
+### 🔌 MCP Bridge
+Il bridge tra Gemini e il database SQL è un servizio Node.js deployato su **Cloud Run** che espone i tool di interrogazione tramite il protocollo MCP.
+
 ## 🌐 Web Interface (Live Demo)
 L'interfaccia chat è pubblicata ed è accessibile al seguente indirizzo:
 👉 **[Healthcare AI Web Portal](https://healthcare-web-ui-482813436426.europe-west1.run.app)**
