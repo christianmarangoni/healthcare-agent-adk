@@ -2,23 +2,29 @@ import os
 import requests
 from google.cloud import aiplatform
 # Assumendo che il framework ADK sia installato nell'ambiente Python del Bastion
-from adk import agent, tool
+from adk import agent, tool, mcp
 
 # --- CONFIGURAZIONE ---
 PROJECT_ID = "rootprj-377111"
 LOCATION = "us-central1"
-# ID del Data Store di Healthcare (opzionale, per grounding futuro)
-DATASTORE_ID = "healthcare-knowledge-base" 
+MCP_URL = "https://healthcare-mcp-bridge-482813436426.us-central1.run.app/sse"
+
+# Caricamento Tool dal Database via MCP
+# Questo registrerà automaticamente 'query_doctors' come tool dell'agente
+mcp_tools = mcp.connect_sse(MCP_URL)
 
 @tool
 def search_doctor(specialization: str, city: str):
     """
     Cerca medici specialisti e la loro disponibilità in una specifica città.
+    Questo tool usa un database locale di emergenza (mock).
+    Per ricerche approfondite sull'intero elenco ATS Milano, Gemini userà automaticamente il tool 'query_doctors'.
     
     Args:
         specialization: La branca medica richiesta (es. cardiologo, pediatra).
         city: Il comune o la città di ricerca.
     """
+    # ... (rest of the code)
     # Mock data - In produzione qui si chiamerebbe un'API FHIR o un DB SQL
     doctors = [
         {"name": "Dr.ssa Elena Bianchi", "spec": "cardiologo", "city": "Milano", "availability": "Domani ore 10:00"},
@@ -44,7 +50,7 @@ def search_doctor(specialization: str, city: str):
         "Non fornire diagnosi mediche; limitati a fornire informazioni operative e disponibilità dei medici.",
         "Rispondi basandoti esclusivamente sulle tue conoscenze certificate o sui tool a disposizione."
     ],
-    tools=[search_doctor]
+    tools=[search_doctor] + mcp_tools
 )
 def healthcare_agent():
     """Entrypoint per l'agente sanitario."""
