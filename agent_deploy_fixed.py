@@ -1,59 +1,88 @@
+import vertexai
+from vertexai.preview.reasoning_engines import ReasoningEngine
 import os
-from google.cloud import aiplatform
-from adk import agent, tool, mcp
 
-# --- CONFIGURAZIONE TELEMETRIA (OPENCLAW CONSOLIDATION) ---
-# Enable instrumentation of OpenTelemetry traces and logs
+# --- CONFIGURAZIONE TELEMETRIA ---
+# Queste variabili devono essere presenti durante l'esecuzione dell'agente su Vertex
 os.environ["GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY"] = "true"
-# Enable the logging of prompt inputs and response outputs (Capture PII/Messages)
 os.environ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = "true"
 
-# --- CONFIGURAZIONE AGENTE ---
-PROJECT_ID = "rootprj-377111"
-LOCATION = "us-central1"
-# Google MCP Data Toolbox URL
-MCP_URL = "https://google-mcp-data-toolbox-exy4yg6ala-uc.a.run.app/sse"
+PROJECT_ID = 'rootprj-377111'
+LOCATION = 'us-central1'
+STAGING_BUCKET = 'gs://golden-dataset-rootprj-377111'
 
-# Connessione al Google MCP Data Toolbox per i medici ATS Milano
-# Questo registra automaticamente i tool 'search_doctors_database' e 'get_doctor_details'
-# mcp_tools = mcp.connect_sse(MCP_URL) # This might fail during packaging if the server isn't reachable from the build worker
+vertexai.init(project=PROJECT_ID, location=LOCATION, staging_bucket=STAGING_BUCKET)
 
-@tool
-def emergency_checker(symptoms: str):
-    """
-    Verifica se i sintomi descritti richiedono il 112.
-    """
-    dangerous = ["dolore petto", "respiro", "incosciente", "emorragia", "infarto"]
-    if any(s in symptoms.lower() for s in dangerous):
-        return "CRITICO: Chiamare il 112 immediatamente."
-    return "Non critico, procedere con ricerca medico specialistico."
-
-@agent(
-    name="healthcare-support-agent",
-    description="Agente sanitario professionale. Utilizza il Google MCP Data Toolbox per interrogare il database medici ATS Milano.",
-    instructions=[
-        "Sei un Assistente Sanitario Intelligente professionale del progetto Argolis.",
-        "Il tuo compito principale è aiutare gli utenti a trovare specialisti tramite il database ufficiale.",
-        "Usa 'search_doctors_database' per trovare i medici (filtra per specializzazione in maiuscolo) e 'get_doctor_details' per contatti.",
-        "Mantieni un tono empatico e rassicurante.",
-        "DISCLAIMER: Per emergenze gravi, istruisci IMMEDIATAMENTE a chiamare il 112.",
-        "Non fornire diagnosi mediche."
-    ],
-    tools=[emergency_checker] # We will add MCP tools later or assume they are discoverable
-)
-def healthcare_agent():
-    """Entrypoint per l'agente sanitario."""
-    pass
+class HealthcareAgent:
+    def __init__(self, model_name="gemini-1.5-flash-001"):
+        self.model_name = model_name
+    
+    def set_up(self):
+        # Import interni per garantire che siano disponibili nel runtime di Vertex
+        from google.adk.agents.llm_agent import LlmAgent
+        from google.adk.tools.function_tool import FunctionTool
+        from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+        from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
+        
+        # Endpoint MCP Bridge per Argolis Project
+        MCP_URL = 'https://google-mcp-data-toolbox-exy4yg6ala-uc.a.run.app/sse'
+        mcp_toolset = McpToolset(connection_params=SseConnectionParams(url=MCP_URL))
+        
+        def emergency_checker(symptoms: str) -> str:
+            """Verifica se i sintomi richiedono il 112."""
+            dangerous = ['dolore petto', 'respiro', 'incosciente', 'emorragia', 'infarto']
+            if any(s in symptoms.lower() for s in dangerous):
+                return 'CRITICO: Chiamare il 112 immediatamente.'
+            return 'Non critico, procedere con ricerca medico specialistico.'
+            
+        self.agent = LlmAgent(
+            name='healthcare-support-agent',
+            instruction=[
+                "Sei un Assistente Sanitario Intelligente professionale del progetto Argolis.",
+                "Il tuo compito principale è aiutare gli utenti a trovare specialisti tramite il database ufficiale.",
+                "Usa 'search_doctors_database' per trovare i medici e 'get_doctor_details' per contatti.",
+                "Mantieni un tono empatico e rassicurante.",
+                "DISCLAIMER: Per emergenze gravi, istruisci IMMEDIATAMENTE a chiamare il 112.",
+                "Non fornire diagnosi mediche."
+            ],
+            tools=[FunctionTool(func=emergency_checker), mcp_toolset],
+            model=self.model_name
+        )
+    
+    def query(self, message: str, user_id: str = 'user-demo'):
+        from google.adk.runners import Runner
+        from google.adk.sessions.in_memory_session_service import InMemorySessionService
+        from google.genai import types
+        
+        session_service = InMemorySessionService()
+        runner = Runner(agent=self.agent, session_service=session_service, app_name='healthcare_app', auto_create_session=True)
+        
+        msg_obj = types.Content(role='user', parts=[types.Part(text=message)])
+        full_text = ''
+        
+        # Esecuzione del runner
+        for event in runner.run(user_id=user_id, session_id='session-v31', new_message=msg_obj):
+            if hasattr(event, 'content') and event.content and event.content.parts:
+                for part in event.content.parts:
+                    if hasattr(part, 'text') and part.text:
+                        full_text += part.text
+        return full_text
 
 if __name__ == "__main__":
-    aiplatform.init(project=PROJECT_ID, location=LOCATION)
-    print(f"✅ Agente con Google MCP Data Toolbox pronto.")
+    print('🚀 Deploying Healthcare Agent Observable V31 (Clean SDK)...')
     
-    # --- DEPLOYMENT LOGIC (OPENCLAW CONSOLIDATION) ---
-    print(f"🚀 Iniciando il deploy dell'agente con Telemetria abilitata...")
-    try:
-        # Nota: ADK automatizza la creazione del container e il deploy su Vertex AI Agent Engine
-        deployment = healthcare_agent.deploy()
-        print(f"✅ Deploy completato con successo! Deployment ID: {deployment.id}")
-    except Exception as e:
-        print(f"⚠️ Errore durante il deploy: {e}. Verificare che ADK sia correttamente installato e configurato.")
+    # Rimuoviamo restrizioni di versione troppo strette che causano conflitti
+    # ma manteniamo google-adk per l'osservabilità
+    requirements = [
+        'google-adk==1.28.1',
+        'google-cloud-aiplatform[reasoningengine]',
+        'requests',
+        'pandas'
+    ]
+    
+    engine = ReasoningEngine.create(
+        HealthcareAgent(),
+        requirements=requirements,
+        display_name='Healthcare Agent Observable V31'
+    )
+    print('✅ SUCCESS! Resource name:', engine.resource_name)
