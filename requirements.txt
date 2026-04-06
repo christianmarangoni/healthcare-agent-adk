@@ -1,4 +1,3 @@
 google-cloud-aiplatform[adk]
 requests
 pandas
-EOF

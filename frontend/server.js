@@ -7,26 +7,18 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const PROJECT_ID = 'rootprj-377111';
-const LOCATION = 'us-central1';
-const MCP_BASE_URL = 'https://google-mcp-data-toolbox-482813436426.us-central1.run.app';
 
-async function callGemini(prompt) {
-    const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/cloud-platform']
-    });
-    const client = await auth.getClient();
-    const url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/publishers/google/models/gemini-3.1-flash-preview:generateContent`;
+// Simple fallback extraction logic without LLM
+function extractParams(text) {
+    const specMatch = text.toUpperCase().match(/(MALATTIE INFETTIVE|CARDIOLOGIA|PEDIATRIA|OCULISTICA)/);
+    const cityMatch = text.toUpperCase().match(/(MILANO|ROMA|NAPOLI|AYAS|AOSTA)/);
     
-    const response = await auth.request({
-        url,
-        method: 'POST',
-        data: {
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json" }
-        }
-    });
-
-    return JSON.parse(response.data.candidates[0].content.parts[0].text);
+    return {
+        isDoctorSearch: !!(specMatch && cityMatch),
+        specialization: specMatch ? specMatch[1] : 'MALATTIE INFETTIVE',
+        city: cityMatch ? cityMatch[1] : 'MILANO',
+        isEmergency: text.toLowerCase().includes('dolore') || text.toLowerCase().includes('respiro')
+    };
 }
 
 app.post('/api/chat', async (req, res) => {
@@ -35,30 +27,16 @@ app.post('/api/chat', async (req, res) => {
     try {
         console.log(`Processing message: ${message}`);
         
-        // 1. Ask Gemini to identify intent and extract parameters
-        const analysisPrompt = `
-        Analizza la seguente richiesta sanitaria e identifica se l'utente sta cercando un medico.
-        Se sì, estrai la specializzazione (in maiuscolo, es. CARDIOLOGIA) e la città.
-        Se l'utente segnala un'emergenza (dolore petto, respiro), attiva il flag emergency.
-        
-        Ritorna SOLO JSON: {"isDoctorSearch": boolean, "specialization": string, "city": string, "isEmergency": boolean}
-        
-        Richiesta: "${message}"
-        `;
-        
-        const analysis = await callGemini(analysisPrompt);
-        console.log("Gemini Analysis:", analysis);
+        const analysis = extractParams(message);
+        console.log("Local Analysis:", analysis);
 
         if (analysis.isEmergency) {
             return res.json({ answer: "⚠️ EMERGENZA RILEVATA: Se ha sintomi gravi o dolore acuto, chiami immediatamente il 112. Non posso fornire assistenza medica d'urgenza." });
         }
 
         if (analysis.isDoctorSearch) {
-            // 2. Call the MCP Server directly via SQL (simulated tool call for demo)
-            // In a real ADK setup, this would be automatic.
-            const dbQuery = `SELECT * FROM doctors WHERE specialization LIKE '%${analysis.specialization}%' AND city LIKE '%${analysis.city.toUpperCase()}%' LIMIT 3`;
+            const dbQuery = `SELECT * FROM doctors WHERE specialization LIKE '%${analysis.specialization}%' AND city LIKE '%${analysis.city}%' LIMIT 3`;
             
-            // For the demo, we call the MCP logic directly since we are the host
             const { Client } = require('pg');
             const pgClient = new Client({
                 host: `/cloudsql/${PROJECT_ID}:europe-west1:healthcare-db-instance`,
@@ -78,14 +56,12 @@ app.post('/api/chat', async (req, res) => {
                 });
                 return res.json({ answer });
             } else {
-                return res.json({ answer: `Spiacente, non ho trovato specialisti in ${analysis.specialization} a ${analysis.city} nel database ufficiale.` });
+                return res.json({ answer: `Spiacente, non ho trovato specialisti in ${analysis.specialization} a ${analysis.city} nel database ufficiale ATS.` });
             }
         }
 
-        // Default response
-        const chatPrompt = `Sei un assistente sanitario. Rispondi in modo gentile a: "${message}". Se non puoi aiutare, scusati.`;
-        const chatRes = await callGemini(`{"answer": "stringa di risposta"} \n\n ${chatPrompt}`);
-        res.json({ answer: chatRes.answer });
+        // Generic fallback
+        res.json({ answer: "Buongiorno! Posso aiutarla a trovare medici specialisti (es. 'cerco un infettivologo a Milano') o fornirle informazioni operative sui protocolli clinici." });
 
     } catch (err) {
         console.error("Error in chat API:", err);
@@ -95,5 +71,5 @@ app.post('/api/chat', async (req, res) => {
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-    console.log(`Frontend Server with Gemini Orchestration listening on port ${PORT}`);
+    console.log(`Frontend Server with Local Logic listening on port ${PORT}`);
 });

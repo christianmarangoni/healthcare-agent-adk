@@ -7,6 +7,8 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "googleapis": "^126.0.0"
+    "googleapis": "^126.0.0",
+    "pg": "^8.11.3",
+    "@google-cloud/vertexai": "^1.0.0"
   }
 }
