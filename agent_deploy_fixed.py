@@ -2,7 +2,13 @@ import os
 from google.cloud import aiplatform
 from adk import agent, tool, mcp
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURAZIONE TELEMETRIA (OPENCLAW CONSOLIDATION) ---
+# Enable instrumentation of OpenTelemetry traces and logs
+os.environ["GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY"] = "true"
+# Enable the logging of prompt inputs and response outputs (Capture PII/Messages)
+os.environ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = "true"
+
+# --- CONFIGURAZIONE AGENTE ---
 PROJECT_ID = "rootprj-377111"
 LOCATION = "us-central1"
 # Google MCP Data Toolbox URL
@@ -42,3 +48,12 @@ def healthcare_agent():
 if __name__ == "__main__":
     aiplatform.init(project=PROJECT_ID, location=LOCATION)
     print(f"✅ Agente con Google MCP Data Toolbox pronto.")
+    
+    # --- DEPLOYMENT LOGIC (OPENCLAW CONSOLIDATION) ---
+    print(f"🚀 Iniciando il deploy dell'agente con Telemetria abilitata...")
+    try:
+        # Nota: ADK automatizza la creazione del container e il deploy su Vertex AI Agent Engine
+        deployment = healthcare_agent.deploy()
+        print(f"✅ Deploy completato con successo! Deployment ID: {deployment.id}")
+    except Exception as e:
+        print(f"⚠️ Errore durante il deploy: {e}. Verificare che ADK sia correttamente installato e configurato.")
